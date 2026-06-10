@@ -1,46 +1,46 @@
 module labour::AST
 
-data BoulderWallConfiguration
-  = boulderWall(str wallId, list[Route] routes, list[Volume] volumes);
+data BoulderWallConfigurationAST
+  = boulderWall(str wallId, list[RouteAST] routes, list[VolumeAST] volumes);
 
-data Route
-  = route(str routeId, str grade, Pos gridBase, list[HoldRef] holds);
+data RouteAST
+  = route(str routeId, str grade, PosAST gridBase, list[HoldRefAST] holds);
 
-data HoldRef
+data HoldRefAST
   = single(str holdId)
   | subRoute(list[str] holdIds);
 
-data Hold
-  = hold(str holdId, HoldPosition pos, str shape, list[str] colours,
-         MaybeInt rotation, list[HoldLabel] labels);
+data HoldAST
+  = hold(str holdId, HoldPositionAST pos, str shape, list[str] colours,
+         MaybeInt rotation, list[HoldLabelAST] labels);
 
-data HoldPosition
-  = xyPos(Pos p)
+data HoldPositionAST
+  = xyPos(PosAST p)
   | anglePos(int angle);
 
-data Pos
+data PosAST
   = pos(int x, int y);
 
-data Rotation
+data RotationAST
   = rotation(int angle);
 
-data HoldLabel
-  = startHold(int num)
+data HoldLabelAST
+  = startHold(int startNum)
   | endHold();
 
-data Volume
-  = circle(Pos p, int depth, int radius, list[CircleHoldSection] sections)
-  | triangle(Pos p, Pos extrusion, int depth, list[Pos] corners,
-             list[TriangleHoldSection] sections);
+data VolumeAST
+  = circle(PosAST p, int depth, int radius, list[CircleHoldSectionAST] circleSections)
+  | triangle(PosAST p, PosAST extrusion, int depth, list[PosAST] corners,
+             list[TriangleHoldSectionAST] triangleSections);
 
-data CircleHoldSection
-  = frontHolds(list[Hold] holds)
-  | sideHolds(list[Hold] holds);
+data CircleHoldSectionAST
+  = frontHolds(list[HoldAST] holds)
+  | sideHolds(list[HoldAST] holds);
 
-data TriangleHoldSection
-  = leftHolds(list[Hold] holds)
-  | rightHolds(list[Hold] holds)
-  | bottomHolds(list[Hold] holds);
+data TriangleHoldSectionAST
+  = leftHolds(list[HoldAST] holds)
+  | rightHolds(list[HoldAST] holds)
+  | bottomHolds(list[HoldAST] holds);
 
 data MaybeInt
   = just(int val)
