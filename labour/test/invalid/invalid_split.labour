@@ -1,0 +1,22 @@
+bouldering_wall "Bad wall" {
+  routes [
+    bouldering_route "Bad split-merge" {
+      grade: "5A",
+      grid_base_point { x: 0, y: 0 },
+      holds ["0001", "0002", {"0003","0004"}, "0007", {"0005","0006"}]
+    }
+  ],
+  volumes [
+    circle {
+      pos: { x: 50, y: 200 },
+      depth: -10,
+      radius: 50,
+      front_holds [
+        hold "0001" { pos: { x: 2, y: 20 }, shape: "5", colours [white] },
+        hold "0002" { pos: { x: 2, y: 20 }, shape: "5", colours [white] },
+        hold "0003" { pos: { x: 15, y: 30 }, shape: "52", colours [blue] },
+        hold "0004" { pos: { x: 15, y: 30 }, shape: "52", colours [blue] }
+      ]
+    }
+  ]
+}

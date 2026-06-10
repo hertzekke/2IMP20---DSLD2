@@ -1,0 +1,21 @@
+bouldering_wall "Missing hold property" {
+  routes [
+    bouldering_route "Missing hold" {
+      grade: "4B",
+      grid_base_point { x: 0, y: 0 },
+      holds ["0100", "0101"]
+    }
+  ],
+  volumes [
+    circle {
+      pos: { x: 10, y: 20 },
+      depth: 5,
+      radius: 10,
+      front_holds [
+        // Missing shape and colours for hold 0100
+        hold "0100" { pos: { x: 2, y: 3 } },
+        hold "0101" { pos: { x: 4, y: 6 }, shape: "12", colours [white] }
+      ]
+    }
+  ]
+}
