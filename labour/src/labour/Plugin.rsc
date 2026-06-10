@@ -19,8 +19,8 @@ import labour::Check;
 bool checkWellformedness(loc fil) {
   // Parsing
   &T resource = parseLaBouR(fil);
-  // Transform the parse tree into an abstract syntax tree (we call the loc overload)
-  &T ast = cst2ast(fil);
+  // Transform the parse tree into an abstract syntax tree
+  &T ast = cst2ast(resource);
   // Check the well-formedness of the program
   return checkBoulderWallConfiguration(ast);
 }

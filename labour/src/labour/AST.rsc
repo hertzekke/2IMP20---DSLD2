@@ -1,37 +1,47 @@
 module labour::AST
 
-/*
- * Define the Abstract Syntax for LaBouR
- * - Hint: make sure there is an almost one-to-one correspondence with the grammar in Syntax.rsc
- */
+data BoulderWallConfiguration
+  = boulderWall(str wallId, list[Route] routes, list[Volume] volumes);
 
-data BoulderingWall(loc src=|unknown:///|)
-  = bWall(str id, list[BoulderingRoute] routes, list[Volume] volumes)
-  ;
+data Route
+  = route(str routeId, str grade, Pos gridBase, list[HoldRef] holds);
 
-data BoulderingRoute
-  = bRoute(str id, str grade, Position gridBasePoint, list[HoldRef] holds)
-  ;
-
-// A hold reference inside a route: either a single hold id or a split (multiple hold ids)
 data HoldRef
-  = single(str id)
-  | split(list[str] ids)
-  ;
+  = single(str holdId)
+  | subRoute(list[str] holdIds);
 
-// Volumes: circle or triangle
-data Volume
-  = circle(Position pos, int depth, int radius, list[Hold] front_holds, list[Hold] side_holds)
-  | triangle(Position pos, Position extrusion, int depth, list[Position] corners, list[Hold] left_holds, list[Hold] right_holds, list[Hold] bottom_holds)
-  ;
-
-// Hold in a volume
 data Hold
-  = hold(str id, PositionOrAngle pos, str shape, list[str] colours, int rotation, int startLabel, bool endHold)
-  ;
+  = hold(str holdId, HoldPosition pos, str shape, list[str] colours,
+         Maybe[int] rotation, list[HoldLabel] labels);
 
-// Position types
-data Position = pos2D(int x, int y);
+data HoldPosition
+  = xyPos(Pos p)
+  | anglePos(int angle);
 
-data PositionOrAngle = posXY(int x, int y) | posAngle(int angle);
+data Pos
+  = pos(int x, int y);
 
+data Rotation
+  = rotation(int angle);
+
+data HoldLabel
+  = startHold(int num)
+  | endHold();
+
+data Volume
+  = circle(Pos p, int depth, int radius, list[CircleHoldSection] sections)
+  | triangle(Pos p, Pos extrusion, int depth, list[Pos] corners,
+             list[TriangleHoldSection] sections);
+
+data CircleHoldSection
+  = frontHolds(list[Hold] holds)
+  | sideHolds(list[Hold] holds);
+
+data TriangleHoldSection
+  = leftHolds(list[Hold] holds)
+  | rightHolds(list[Hold] holds)
+  | bottomHolds(list[Hold] holds);
+
+data Maybe[&T]
+  = just(&T val)
+  | nothing();
