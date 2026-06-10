@@ -1,6 +1,6 @@
 module labour::AST
 
-data BoulderWallConfigurationAST
+data BoulderWallAST
   = boulderWall(str wallId, list[RouteAST] routes, list[VolumeAST] volumes);
 
 data RouteAST

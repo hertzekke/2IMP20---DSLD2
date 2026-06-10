@@ -10,20 +10,7 @@ import Set;
 import Prelude;
 import String;
 
-
-/*
- * Implement a well-formedness checker for the LaBouR language. For this you must use the AST.
- * - Hint: Map regular CST arguments (e.g., *, +, ?) to lists
- * - Hint: Map lexical nodes to Rascal primitive types (bool, int, str)
- * - Hint: Use switch to do case distinction with concrete patterns
- */
-
-/*
- * Define a function per each verification defined in the PDF (Section 2.2.)
- * Some examples are provided below.
- */
-
-bool checkBoulderWallConfiguration(BoulderingWall wall){
+bool checkBoulderingWall(BoulderWallAST wall){
   bool hasVolumesAndRoutes = (size(wall.routes) > 0 && size(wall.volumes) > 0);
 
   bool routesHaveEnoughHolds = checkNumberOfHolds(wall);
@@ -37,11 +24,8 @@ bool checkBoulderWallConfiguration(BoulderingWall wall){
   return (hasVolumesAndRoutes && routesHaveEnoughHolds && startingLabelLimit && unique_end_hold && idFormat && holdProperties && colours);
 }
 
-
-// Check that there are at least two holds in the wall
-bool checkNumberOfHolds(BoulderingWall wall) {
-  // Check each route has two or more holds
-  for (bRoute(rid, g, gbp, holds) <- wall.routes) {
+bool checkNumberOfHolds(BoulderWallAST wall) {
+  for (route(rid, g, gbp, holds) <- wall.routes) {
     if (size(holds) < 2) {
       println("Route has fewer than two holds: " + rid);
       return false;
@@ -50,26 +34,25 @@ bool checkNumberOfHolds(BoulderingWall wall) {
   return true;
 }
 
-// Check that routes have between zero and two hand start holds
-bool checkStartingHoldsTotalLimit(BoulderingWall wall) {
-  for (bRoute(rid, g, gbp, holds) <- wall.routes) {
+bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
+  for (route(rid, g, gbp, holds) <- wall.routes) {
     int totalStarts = 0;
     for (hr <- holds) {
       switch(hr) {
         case single(id): {
-          Hold? h = findHoldById(wall, id);
-          if (h != null) {
-            switch(h) {
-              case hold(_, _, _, _, _, sl, _): if (sl > 0) totalStarts += 1;
+          list[HoldAST] hs = findHoldById(wall, id);
+          for (h <- hs) {
+            for (lbl <- h.labels) {
+              if (startHold(_) := lbl) totalStarts += 1;
             }
           }
         }
-        case split(ids): {
+        case subRoute(ids): {
           for (id <- ids) {
-            Hold? h = findHoldById(wall, id);
-            if (h != null) {
-              switch(h) {
-                case hold(_, _, _, _, _, sl, _): if (sl > 0) totalStarts += 1;
+            list[HoldAST] hs = findHoldById(wall, id);
+            for (h <- hs) {
+              for (lbl <- h.labels) {
+                if (startHold(_) := lbl) totalStarts += 1;
               }
             }
           }
@@ -84,24 +67,29 @@ bool checkStartingHoldsTotalLimit(BoulderingWall wall) {
   return true;
 }
 
-// This function will insure that there is only one hold assign to end hold
-bool checkUniqueEndHold(BoulderingWall wall){
-  for (bRoute(rid, g, gbp, holds) <- wall.routes) {
+bool checkUniqueEndHold(BoulderWallAST wall){
+  for (route(rid, g, gbp, holds) <- wall.routes) {
     int endCount = 0;
     bool hasSplit = false;
     for (hr <- holds) {
       switch(hr) {
         case single(id): {
-          Hold? h = findHoldById(wall, id);
-          if (h != null) {
-            switch(h) { case hold(_, _, _, _, _, _, eh): { if (eh) endCount += 1; } }
+          list[HoldAST] hs = findHoldById(wall, id);
+          for (h <- hs) {
+            for (lbl <- h.labels) {
+              if (endHold() := lbl) endCount += 1;
+            }
           }
         }
-        case split(ids): {
+        case subRoute(ids): {
           hasSplit = true;
           for (id <- ids) {
-            Hold? h = findHoldById(wall, id);
-            if (h != null) { switch(h) { case hold(_, _, _, _, _, _, eh): { if (eh) endCount += 1; } } }
+            list[HoldAST] hs = findHoldById(wall, id);
+            for (h <- hs) {
+              for (lbl <- h.labels) {
+                if (endHold() := lbl) endCount += 1;
+              }
+            }
           }
         }
       }
@@ -122,12 +110,12 @@ bool checkUniqueEndHold(BoulderingWall wall){
   return true;
 }
 
-// Check hold id format: exactly four digits
-bool checkHoldIdFormat(BoulderingWall wall) {
+bool checkHoldIdFormat(BoulderWallAST wall) {
   for (v <- wall.volumes) {
     for (h <- volumeHolds(v)) {
-      switch(h) {
-        case hold(id, _, _, _, _, _, _): if (!matchHoldId(id)) { println("Hold id " + id + " is not four digits"); return false; }
+      if (!matchHoldId(h.holdId)) { 
+        println("Hold id " + h.holdId + " is not four digits"); 
+        return false; 
       }
     }
   }
@@ -135,25 +123,23 @@ bool checkHoldIdFormat(BoulderingWall wall) {
 }
 
 bool matchHoldId(str id) {
-  return regex("^[0-9]{4}$").match(id);
+  return /^[0-9]{4}$/ := id;
 }
 
-// Check that each hold has required properties (position, shape, colours)
-bool checkHoldProperties(BoulderingWall wall) {
+bool checkHoldProperties(BoulderWallAST wall) {
   for (v <- wall.volumes) {
     for (h <- volumeHolds(v)) {
-      switch(h) {
-        case hold(id, pos, shape, colours, rotation, startLabel, endHold): {
-          if (shape == "") { println("Hold " + id + " missing shape"); return false; }
-          if (size(colours) == 0) { println("Hold " + id + " missing colours"); return false; }
-          switch(pos) {
-            case posXY(x,y): break;
-            case posAngle(a): if (a < 0 || a > 359) { println("Hold " + id + " angle out of range"); return false; }
-          }
-          if (rotation >= 0 && (rotation < 0 || rotation > 359)) { println("Hold " + id + " rotation out of range"); return false; }
-          for (c <- colours) { if (!isValidColour(c)) { println("Hold " + id + " has invalid colour " + c); return false; } }
-        }
+      if (h.shape == "") { println("Hold " + h.holdId + " missing shape"); return false; }
+      if (size(h.colours) == 0) { println("Hold " + h.holdId + " missing colours"); return false; }
+      switch(h.pos) {
+        case xyPos(_): ; // OK
+        case anglePos(a): if (a < 0 || a > 359) { println("Hold " + h.holdId + " angle out of range"); return false; }
       }
+      switch(h.rotation) {
+        case just(rot): if (rot < 0 || rot > 359) { println("Hold " + h.holdId + " rotation out of range"); return false; }
+        case nothing(): ; // OK
+      }
+      for (c <- h.colours) { if (!isValidColour(c)) { println("Hold " + h.holdId + " has invalid colour " + c); return false; } }
     }
   }
   return true;
@@ -164,27 +150,46 @@ bool isValidColour(str c) {
   return c in valid;
 }
 
-list[Hold] volumeHolds(Volume v) {
+list[HoldAST] volumeHolds(VolumeAST v) {
   switch(v) {
-    case circle(p,d,r,front,side): return front + side;
-    case triangle(p,e,d,corners,left,right,bottom): return left + right + bottom;
+    case circle(_, _, _, sections): {
+      list[HoldAST] res = [];
+      for (s <- sections) {
+        switch(s) {
+          case frontHolds(hs): res += hs;
+          case sideHolds(hs): res += hs;
+        }
+      }
+      return res;
+    }
+    case triangle(_, _, _, _, sections): {
+      list[HoldAST] res = [];
+      for (s <- sections) {
+        switch(s) {
+          case leftHolds(hs): res += hs;
+          case rightHolds(hs): res += hs;
+          case bottomHolds(hs): res += hs;
+        }
+      }
+      return res;
+    }
   }
+  return [];
 }
 
-// For each route, ensure all holds referenced share at least one colour
-bool checkRoutesColoursIntersection(BoulderingWall wall) {
-  for (bRoute(rid, g, gbp, holds) <- wall.routes) {
+bool checkRoutesColoursIntersection(BoulderWallAST wall) {
+  for (route(rid, g, gbp, holds) <- wall.routes) {
     list[list[str]] allColours = [];
     for (hr <- holds) {
       switch(hr) {
         case single(id): {
-          Hold? h = findHoldById(wall,id);
-          if (h != null) { switch(h) { case hold(_,_,_,cols,_,_,_): { allColours += [cols]; } } }
+          list[HoldAST] hs = findHoldById(wall,id);
+          for (h <- hs) allColours += [h.colours];
         }
-        case split(ids): {
+        case subRoute(ids): {
           for (id <- ids) {
-            Hold? h = findHoldById(wall,id);
-            if (h != null) { switch(h) { case hold(_,_,_,cols,_,_,_): { allColours += [cols]; } } }
+            list[HoldAST] hs = findHoldById(wall,id);
+            for (h <- hs) allColours += [h.colours];
           }
         }
       }
@@ -192,20 +197,21 @@ bool checkRoutesColoursIntersection(BoulderingWall wall) {
     if (size(allColours) == 0) { println("Route " + rid + " references unknown holds"); return false; }
     list[str] interList = allColours[0];
     for (i <- [1..size(allColours)-1]) {
-      list[str] next = allColours[i];
-      interList = [c | c <- interList, c in next];
+      if (i < size(allColours)) {
+        list[str] next = allColours[i];
+        interList = [c | c <- interList, c in next];
+      }
     }
     if (size(interList) == 0) { println("Route " + rid + " has no common colour across its holds"); return false; }
   }
   return true;
 }
 
-// Find a hold by id in the wall; returns null if not found
-Hold? findHoldById(BoulderingWall wall, str id) {
+list[HoldAST] findHoldById(BoulderWallAST wall, str id) {
   for (v <- wall.volumes) {
     for (h <- volumeHolds(v)) {
-      switch(h) { case hold(hid, _, _, _, _, _, _): if (hid == id) return h; }
+      if (h.holdId == id) return [h];
     }
   }
-  return null;
+  return [];
 }

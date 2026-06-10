@@ -2,152 +2,81 @@ module labour::CST2AST
 
 import labour::Syntax;
 import labour::AST;
-
-// This provides println which can be handy during debugging.
-import IO;
-
-// These provide useful functions such as toInt, keep those in mind.
-import Prelude;	
 import String;
-import ParseTree;
 
-/*
- * Entry point. The parser in Parser.rsc produces a
- * Tree rooted at (start BoulderWallConfiguration); we unwrap the start
- * node and dispatch into the main mapping.
- */
-BoulderWallConfigurationAST cst2ast(Tree tree) {
-  return cst2ast(tree.top);
+BoulderWallAST cst2ast(start[BoulderingWall] pt) {
+  return cst2ast(pt.top);
 }
 
-// ─── BoulderWallConfiguration ────────────────────────────────────────────────
+str unquote(str s) = substring(s, 1, size(s)-1);
 
-BoulderWallConfigurationAST cst2ast((BoulderWallConfiguration) `boulderingwall <WallId wid>
-                                                               routes <Route+ routes>
-                                                               volumes <Volume+ volumes>`) =
-  boulderWall(
-    "<wid>",
-    [cst2ast(r) | r <- routes],
-    [cst2ast(v) | v <- volumes]
-  );
+// ─── BoulderingWall ─────────────────────────────────────────────────────────
 
-// ─── Route ────────────────────────────────────────────────────────────────────
+BoulderWallAST cst2ast((BoulderingWall)`bouldering_wall <WallId wid> { routes [ <{Route ","}* rs> ] , volumes [ <{Volume ","}* vs> ] }`) =
+  boulderWall(unquote("<wid>"), [cst2ast(r) | r <- rs], [cst2ast(v) | v <- vs]);
 
-RouteAST cst2ast((Route) `boulderingroute <RouteId rid>
-                        grade <ShapeId grade> ,
-                        gridbasepoint <Pos gp> ,
-                        holds <HoldRef first> <("," HoldRef rest)*  tail> <","?>`) =
-  route(
-    "<rid>",
-    "<grade>",
-    cst2ast(gp),
-    [cst2ast(first)] + [cst2ast(hr) | hr <- tail]
-  );
+BoulderWallAST cst2ast((BoulderingWall)`bouldering_wall <WallId wid> { routes [ <{Route ","}* rs> ] volumes [ <{Volume ","}* vs> ] }`) =
+  boulderWall(unquote("<wid>"), [cst2ast(r) | r <- rs], [cst2ast(v) | v <- vs]);
 
-// ─── HoldRef ─────────────────────────────────────────────────────────────────
+// ─── Route ───────────────────────────────────────────────────────────────────
 
-HoldRefAST cst2ast((HoldRef) `<HoldId hid>`) =
-  single("<hid>");
+RouteAST cst2ast((Route)`bouldering_route <RouteId rid> { grade: <ShapeId gr> , grid_base_point <Pos gp> , holds [ <{HoldRef ","}+ hrs> ] }`) =
+  route(unquote("<rid>"), unquote("<gr>"), cst2ast(gp), [cst2ast(hr) | hr <- hrs]);
 
-HoldRefAST cst2ast((HoldRef) `( <HoldId first> <("," HoldId rest)*  tail> )`) =
-  subRoute(["<first>"] + ["<h>" | h <- tail]);
+HoldRefAST cst2ast((HoldRef)`<HoldId hid>`) = single(unquote("<hid>"));
+HoldRefAST cst2ast((HoldRef)`{ <{HoldId ","}+ ids> }`) = subRoute([unquote("<id>") | id <- ids]);
 
 // ─── Hold ────────────────────────────────────────────────────────────────────
 
-HoldAST cst2ast((Hold) `hold <HoldId hid>
-                     <HoldPosition hp> ,
-                     shape <ShapeId shape> ,
-                     colours <{Colour ","}+ colours> ,
-                     <Rotation? rot>
-                     <HoldLabel* labels>`) =
-  hold(
-    "<hid>",
-    cst2ast(hp),
-    "<shape>",
-    ["<c>" | c <- colours],     // sep list: iterate directly
-    cst2astRotation(rot),
-    [cst2ast(l) | l <- labels]
-  );
+HoldAST cst2ast((Hold)`hold <HoldId hid> { <{HoldProperty ","}* props> }`) {
+  HoldPositionAST pos = xyPos(pos(0,0)); 
+  str shape = "";
+  list[str] colours = [];
+  MaybeInt rot = nothing();
+  list[HoldLabelAST] labels = [];
 
-// ─── Rotation (Maybe) ────────────────────────────────────────────────────────
+  for (HoldProperty prop <- props) {
+    if ((HoldProperty)`pos: <HoldPosition hp>` := prop) pos = cst2ast(hp);
+    else if ((HoldProperty)`shape: <ShapeId sh>` := prop) shape = unquote("<sh>");
+    else if ((HoldProperty)`colours [ <{Colour ","}+ cols> ]` := prop) colours = ["<c>" | c <- cols];
+    else if ((HoldProperty)`rotation: <Integer n>` := prop) rot = just(toInt("<n>"));
+    else if ((HoldProperty)`start_hold: <StartNum n>` := prop) labels += startHold(toInt("<n>"));
+    else if ((HoldProperty)`end_hold` := prop) labels += endHold();
+  }
 
-/*
- * Rotation? produces an optional node. We pattern-match on the two possible
- * shapes: a present Rotation node, or an empty optional.
- */
-MaybeInt cst2astRotation((Rotation?) `rotation <Integer n> ,`) =
-  just(toInt("<n>"));
-
-MaybeInt cst2astRotation((Rotation?) ``) =
-  nothing();
+  return hold(unquote("<hid>"), pos, shape, colours, rot, labels);
+}
 
 // ─── HoldPosition ─────────────────────────────────────────────────────────────
 
-HoldPositionAST cst2ast((HoldPosition) `pos <Pos p>`) =
-  xyPos(cst2ast(p));
-
-HoldPositionAST cst2ast((HoldPosition) `pos angle <Integer n>`) =
-  anglePos(toInt("<n>"));
+HoldPositionAST cst2ast((HoldPosition)`<Pos p>`) = xyPos(cst2ast(p));
+HoldPositionAST cst2ast((HoldPosition)`{ angle: <Integer n> }`) = anglePos(toInt("<n>"));
 
 // ─── Pos ─────────────────────────────────────────────────────────────────────
 
-PosAST cst2ast((Pos) `x <Integer x> , y <Integer y>`) =
-  pos(toInt("<x>"), toInt("<y>"));
-
-// ─── HoldLabel ────────────────────────────────────────────────────────────────
-
-HoldLabelAST cst2ast((HoldLabel) `starthold <StartNum n> ,`) =
-  startHold(cst2astStartNum(n));
-
-HoldLabelAST cst2ast((HoldLabel) `endhold`) =
-  endHold();
-
-int cst2astStartNum((StartNum) `1`) = 1;
-int cst2astStartNum((StartNum) `2`) = 2;
+PosAST cst2ast((Pos)`{ x: <Integer x> , y: <Integer y> }`) = pos(toInt("<x>"), toInt("<y>"));
 
 // ─── Volume ───────────────────────────────────────────────────────────────────
 
-VolumeAST cst2ast((Volume) `circle
-                          pos <Pos p> ,
-                          depth <Integer d> ,
-                          radius <Integer r> ,
-                          <CircleHoldSection* circleSections>`) =
-  circle(
-    cst2ast(p),
-    toInt("<d>"),
-    toInt("<r>"),
-    [cst2ast(s) | s <- circleSections]
-  );
+VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , radius: <Integer r> , <{CircleHoldSection ","}* circleSections> }`) =
+  circle(cst2ast(p), toInt("<d>"), toInt("<r>"), [cst2ast(s) | s <- circleSections]);
 
-VolumeAST cst2ast((Volume) `triangle
-                          pos <Pos p> ,
-                          extrusion <Pos ext> ,
-                          depth <Integer d> ,
-                          corners <Pos c1> , <Pos c2> , <Pos c3> ,
-                          <TriangleHoldSection* triangleSections>`) =
-  triangle(
-    cst2ast(p),
-    cst2ast(ext),
-    toInt("<d>"),
-    [cst2ast(c1), cst2ast(c2), cst2ast(c3)],
-    [cst2ast(s) | s <- triangleSections]
-  );
+VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , <{CircleHoldSection ","}* circleSections> }`) =
+  circle(cst2ast(p), toInt("<d>"), 0, [cst2ast(s) | s <- circleSections]);
+
+VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , corners [ <Pos c1> , <Pos c2> , <Pos c3> ] , <{TriangleHoldSection ","}* triangleSections> }`) =
+  triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [cst2ast(c1), cst2ast(c2), cst2ast(c3)], [cst2ast(s) | s <- triangleSections]);
+
+VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , <{TriangleHoldSection ","}* triangleSections> }`) =
+  triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [], [cst2ast(s) | s <- triangleSections]);
 
 // ─── CircleHoldSection ────────────────────────────────────────────────────────
 
-CircleHoldSectionAST cst2ast((CircleHoldSection) `frontholds <Hold+ hs> <","?>`) =
-  frontHolds([cst2ast(h) | h <- hs]);
-
-CircleHoldSectionAST cst2ast((CircleHoldSection) `sideholds <Hold+ hs> <","?>`) =
-  sideHolds([cst2ast(h) | h <- hs]);
+CircleHoldSectionAST cst2ast((CircleHoldSection)`front_holds [ <{Hold ","}* hs> ]`) = frontHolds([cst2ast(h) | h <- hs]);
+CircleHoldSectionAST cst2ast((CircleHoldSection)`side_holds [ <{Hold ","}* hs> ]`)  = sideHolds([cst2ast(h) | h <- hs]);
 
 // ─── TriangleHoldSection ──────────────────────────────────────────────────────
 
-TriangleHoldSectionAST cst2ast((TriangleHoldSection) `leftholds <Hold+ hs> <","?>`) =
-  leftHolds([cst2ast(h) | h <- hs]);
-
-TriangleHoldSectionAST cst2ast((TriangleHoldSection) `rightholds <Hold+ hs> <","?>`) =
-  rightHolds([cst2ast(h) | h <- hs]);
-
-TriangleHoldSectionAST cst2ast((TriangleHoldSection) `bottomholds <Hold+ hs> <","?>`) =
-  bottomHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHoldSection)`left_holds [ <{Hold ","}* hs> ]`)   = leftHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHoldSection)`right_holds [ <{Hold ","}* hs> ]`)  = rightHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHoldSection)`bottom_holds [ <{Hold ","}* hs> ]`) = bottomHolds([cst2ast(h) | h <- hs]);

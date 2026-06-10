@@ -22,7 +22,7 @@ bool checkWellformedness(loc fil) {
   // Transform the parse tree into an abstract syntax tree
   &T ast = cst2ast(resource);
   // Check the well-formedness of the program
-  return checkBoulderWallConfiguration(ast);
+  return checkBoulderingWall(ast);
 }
 
 /*
