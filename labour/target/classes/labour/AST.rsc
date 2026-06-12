@@ -25,7 +25,7 @@ data RotationAST
   = rotation(int angle);
 
 data HoldLabelAST
-  = startHold(int startNum)
+  = startHold(int StartHold)
   | endHold();
 
 data VolumeAST

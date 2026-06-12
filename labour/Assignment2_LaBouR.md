@@ -1,57 +1,59 @@
 # 2IMP20 DSL Design — Assignment 2: LaBouR in Rascal
 
-**Deadline:** Friday, June 12th, 23:59 via Canvas (group submission of two students)
-
 ---
 
 ## Introduction
 
-The goal of this assignment is to design and implement a Domain-Specific Language (DSL) for specifying bouldering gym routes. This assignment must be implemented using the **Rascal language workbench**.
+The goal of this assignment is to design and implement a Domain-Specific Language (DSL) for specifying *bouldering* gym routes (see [https://en.wikipedia.org/wiki/Bouldering](https://en.wikipedia.org/wiki/Bouldering)). This assignment must be implemented using the [Rascal language workbench](https://www.rascal-mpl.org/).
 
-Setup steps:
-- Get the assignment's project skeleton from the template repository.
-- Open the assignment folder in VSCode (`Ctrl/Cmd+K, Ctrl/Cmd+O` or `File → Open Folder`).
-- If using a git repository: create your own repo and update the remote origin:
-  ```
-  git remote set-url origin <NEW_GIT_URL_HERE>
-  ```
+## Assignment
 
-The DSL is called **LaBouR** (Language for Bouldering Routes). You already implemented it with Ecore in Assignment 1. Now you will re-implement it using Rascal's grammar formalism, parser, AST, CST-to-AST transformation, and well-formedness checker.
+This assignment is meant to familiarize you with the basics of defining languages using Rascal.
+
+The assignment aims to build a DSL called LaBouR (Language for Bouldering Routes) for defining routes for a bouldering gym. You have already done so before but with Ecore. One of the tasks in this assignment is to develop a concrete syntax for LaBouR, which can then be used to parse LaBouR programs. In the template repository, you will find a [VS Code](https://code.visualstudio.com/) project with the skeleton of the assignment. Look at the `src` folder within [VS Code](https://code.visualstudio.com/). This folder contains all the necessary language modules. Each module contains the instructions for the exercises and hints to guide the development.
+
+LaBouR allows users to define bouldering routes consisting of bouldering holds. Both the routes and the holds have properties that are described below. Furthermore, LaBouR allows the definition of “volumes” that represent the depth of the bouldering wall. Figure 1 shows a bouldering wall composed of coloured holds and polygonal volumes.
+
+We will use LaBouR to demonstrate the various aspects of language design discussed in this course. As mentioned, we will do this with the [Rascal language workbench](https://www.rascal-mpl.org/). Hereafter, we introduce more details about the LaBouR language.
 
 ---
 
 ## Main Concepts
 
-A **bouldering wall** has a unique ID and is composed of **volumes** and **routes**. Volumes define which holds are available in a wall; routes are defined based on those holds.
+A bouldering wall has a unique ID, and it is composed of volumes and routes. **Volumes define which holds are available in a wall, and the routes are defined based on these holds.**
 
 ### Holds
 
-Each hold provides:
-- A **unique hold identifier** defined by a four-character string (e.g., `"0001"`)
-- Its **(x, y) coordinates** in cm (integer values), or an **angle** if inside a cylindrical volume's side
-- A **hold shape identifier** (e.g., `"52"`)
-- A **list of colours** (supports multicoloured holds)
-- An **optional rotation** — any integer between 0 and 359
-- Optional labels: `start_hold:1` or `start_hold:2`, or `end_hold`
+A hold can be labelled as a `start_hold`, which takes either 1 or 2 as an argument, or `end_hold`. There can be a maximum of two starting holds and a maximum of one end hold per route. If there are sub-routes, then each sub-route may have an end hold. If no end hold is defined, the bouldering route is finished by climbing over the top of the wall (onto a landing area). Each hold provides information describing:
+
+- a unique hold identifier defined by a four-character string.
+- its (x, y) coordinates. These coordinates are in **cm** and defined with **integer** values. (more about this in Section 2.1.2).
+- a hold shape identifier defined by a string, e.g., "52".
+- a list of colours (to accommodate not just unicoloured holds, but also multicoloured ones—in practice, think transparent holds that have small coloured holds or stickers inside them corresponding to the multiple colours).
+- an optional rotation that defines the angle of the hold. The angle can be any **integer** between 0 and 359.
+
+An example of a hold described using the LaBouR language is provided in Listing 1
 
 ```
 hold "0001" {
   pos { x: 30, y: 70 },
   shape: "107",
-  colours [red, green],
+  colours [ red, green ],
   start_hold: 1,
   rotation: 30
 }
 ```
+Listing 1: Example definition of a Hold
 
 ### Volumes
 
 There are two types of volumes:
 
 #### Circle
-Defined by: `(x,y)` position, `radius`, `depth` (can be negative).
-- `front_holds`: holds with `(x,y)` relative to the cylinder's front face centre
-- `side_holds`: holds with `angle` (degrees around the cylinder side surface)
+
+A cylindrical volume is defined by its `(x, y)` position, `radius` and `depth`. The depth describes how extruded the volume is. This depth can also be negative if the shape "subtracts" from the wall. Listing 2 provides an example of a `circle` in LaBouR and Figure 2 provides a visual description of the different `circle` properties.
+
+For holds in a cylindrical volume, their position is defined in relation to the volume position. For holds in the `side_holds`, instead of `(x, y)` coordinates, the holds are defined by their `angle` (in degrees) around the cylinder side surface. For `front_holds`, the `(x, y)` coordinates are defined relative to the centre of the front face of the cylinder.
 
 ```
 circle {
@@ -59,16 +61,27 @@ circle {
   depth: -10,
   radius: 50,
   front_holds [
-    hold "0001" { pos: { x: 15, y: 30 }, shape: "52", colours [blue, white] }
+    hold "0001" {
+      pos: { x: 15, y: 30 },
+      shape: "52",
+      colours [ blue, white ]
+    }
   ],
   side_holds [
-    hold "0002" { pos: { angle: 30 }, shape: "42", colours [blue] }
+    hold "0002" {
+      pos: { angle: 30 },
+      shape: "42",
+      colours [ blue ]
+    }
   ]
 }
 ```
+Listing 2: Example definition of a Circle volume
 
 #### Triangle
-Defined by: `(x,y)` position, `extrusion` point (relative to triangle centre), `depth`, and `corners` array (exactly 3 corners, relative to centre).
+A triangular volume is defined by its (x, y) position, an array of three corners,
+an extrusion point and a depth. Listing 3 provides an example of a triangle in LaBouR
+and Figure 3 provides a visual description of the different triangle properties.
 - May contain holds in `left_holds`, `right_holds`, or `bottom_holds`
 
 ```
@@ -89,79 +102,82 @@ triangle {
 
 ### Routes
 
-Each bouldering route must have:
-- A **grade** (string, e.g., `"5A"`)
-- A **grid_base_point** with `(x,y)` coordinates (relative to lower-left corner of the wall)
-- A **unique route identifier** (string, e.g., `"myroute"`)
-- An **array of hold identifiers**, where a split is expressed as `{"0003","0004"}`
+Besides the volumes, the wall can also contain multiple routes. A bouldering route must have a few properties:
+- a grade defined by a string, e.g., “5A”.
+- a grid_base_point defined by an (x, y) coordinate. These coordinates are relative to the left lower corner of the bouldering wall.
+- a unique route identifier defined by a string, e.g., “my route”
+- an array of hold identifiers that indicate which holds are part of this route and which sub-routes are present.
+
+Moreover, a route can split at a certain hold into two sub-routes that can later merge or end up in two different end holds (if not merged). An example of such a route is given in Listing 4.
 
 ```
 routes [
   bouldering_route "Split route" {
     grade: "5A",
     grid_base_point { x: 0, y: 0 },
-    holds ["0001", "0002", {"0003","0004"}, {"0005","0006"}, "0007"]
+    holds ["0001", "0002", {"0003", "0004"}, {"0005", "0006"}, "0007"]
   }
 ]
 ```
+Listing 4: Example definition of a single route that splits into two sub-routes
 
-A split at `{"0003","0004"}` means two sub-routes: `0001→0002→0003→0005→0007` and `0001→0002→0004→0006→0007`.
+For the route in Listing 4, it is possible to imagine the split as two separate routes:
+
+1. "0001", "0002", "0003", "0005", "0007"
+2. "0001", "0002", "0004", "0006", "0007"
 
 ---
 
 ## Well-formedness Rules
 
-All of the following must be validated in `Check.rsc`. Some may be embedded in the concrete syntax directly; others must be checked externally.
+To have a valid LaBouR bouldering route definition, some requirements have to be satisfied. The following conditions ensure the  ell-formedness of a LaBouRbouldering route definition. Note that if a data type is not specified, you may choose something sensible yourself; do not forget to explain why.
 
-| # | Rule |
-|---|------|
-| 1 | Every wall must have at least one volume and one route |
-| 2 | Every route must have two or more holds |
-| 3 | Every route must have between zero and two hand start holds |
-| 4 | Every route must have at most one splitting hold (i.e., no more than two sub-routes) |
-| 5 | Every route must have a grade, a `grid_base_point`, and an identifier |
-| 6 | The `grid_base_point` must have both `x` and `y` components |
-| 7 | A route has at most two `end_hold`s if it splits, and at most one if it does not split |
-| 8 | After a merge, there must be no new split — `split → merge → split` is **invalid** |
-| 9 | Hold IDs are always exactly four digits (e.g., `"0025"`) |
-| 10 | Wall and route IDs may contain any alphanumeric character |
-| 11 | All holds in a route must share at least one colour (for multicoloured holds, the intersection of colour lists must be non-empty; order of colours is irrelevant) |
-| 12 | Every hold must have a position, a shape, and a colour |
-| 13 | If a hold position is defined by an angle, the angle must be between 0 and 359 |
-| 14 | If a hold has a rotation, its value must be between 0 and 359 |
-| 15 | Valid colours: `white`, `yellow`, `green`, `blue`, `red`, `purple`, `pink`, `black`, `orange` |
-| 16 | Only two volume types: `circle` and `triangle` |
-| 17 | A circular volume must have a `radius`, `depth`, and `position` |
-| 18 | A circular volume may only contain holds in `front_holds` or `side_holds` |
-| 19 | A triangular volume must have a `position`, `depth`, an extrusion point, and a `corners` array with exactly three items |
-| 20 | A triangular volume may only contain holds in `left_holds`, `right_holds`, or `bottom_holds` |
+1. Every wall must have at least one volume and one route.
+2. Every route must have two or more holds.
+3. Every route must have between zero and two hand start holds.
+4. Every route must have at most one splitting hold where sub-routes start (i.e. no more than two sub-routes).
+5. Every route must have a grade, a `grid_base_point`, and an `identifier`.
+6. The `grid_base_point` must have an `x` and a `y` component.
+7. Every route has at most two holds indicated as `end_hold` if it splits into sub-routes, and at most one `end_hold` if it does not split.
+8. In a route, after a split, there should be no new split if there was a merge before.
 
-**Invalid route example (rule 8 — split after merge):**
 ```
-holds ["0001", "0002", {"0003","0004"}, "0007", {"0005","0006"}]
-// > Split > Merge > Split  ← INVALID
+holds ["0001", "0002", {"0003", "0004"}, "0007", {"0005", "0006"}]
+                      > Split           > Merge   > Split
 ```
+Listing 5: Example of an invalid route
+
+9. Hold IDs are always defined with four digits, for example, "0025".
+10. The wall and route IDs can take any alphanumeric character.
+11. The holds in a bouldering route must all have the same colour. In multicoloured holds, the intersection of the colour lists must be non-empty. The order of the colours in a multicoloured hold is not relevant.
+12. Every hold must have a position (defined by `x` and `y`, or by and angle), a shape, and colour.
+13. If a hold position is defined by an angle, the angle must be between 0 and 359.
+14. Holds may have a rotation property. If a hold has a rotation, its value must be between 0 and 359.
+15. The colour values used must be valid. For now, we assume valid colours to be `white`, `yellow`, `green`, `blue`, `red`, `purple`, `pink`, `black`, and `orange`.
+16. There are only two types of volumes: `circle` and `triangle`.
+17. A circular volume must have a `radius`, a `depth` and a `position`.
+18. A circular volume may only contain holds in the `front_holds` or `side_holds` lists.
+19. A triangular volume must have a `position`, `depth`, an `extrude` point, and a `corner` array, with three items that defines the corners of the triangle.
+20. A triangular volume may only contain holds in the `left_holds`, `right_holds`, or `bottom_holds` lists.
 
 ---
 
 ## Deliverables — Five Rascal Modules
 
 ### `Syntax.rsc` — Concrete Grammar
-Define the grammar for LaBouR using Rascal's grammar formalism. Decide carefully which well-formedness rules to embed directly in the syntax vs. which to handle in `Check.rsc`. Document this decision in comments.
+Define the grammar for LaBouR using Rascal's grammar formalism in `Syntax.rsc`.
 
 ### `Parser.rsc` — Parse Function
-Implement `parseLaBouR(loc l)` that takes a file location and returns the parse tree for the LaBouR program at that location.
+Define a parse function for LaBouR. The name of the function is `parseLaBouR(...)`. It gets a location (loc) as parameter and it returns the parse tree corresponding to the concrete LaBouR bouldering route in the file at loc (module `Parser.rsc`).
 
 ### `AST.rsc` — Abstract Syntax
-Define Rascal `data` types that represent the abstract syntax of LaBouR. The AST should strip away concrete syntax noise (keywords, punctuation) and retain only semantically meaningful structure.
+Define Rascal `data` types that represent the abstract syntax of LaBouR.
 
 ### `CST2AST.rsc` — CST to AST Transformation
-Implement `cst2ast(...)` that takes a parse tree and returns the corresponding AST.
-
-> ⚠️ **Do NOT use Rascal's built-in `implode` function.** You must write every mapping manually — this is one of the core learning objectives of the assignment.
+Define the function `cst2ast(...)`, which takes a parse tree of a LaBouR bouldering route as parameter and returns an abstract syntax tree as described in the AST (module `CST2AST.rsc`). Obviously, you are not allowed to use Rascal’s built in `implode` function—one of the goals of this assignment is to make you understand and implement the process to go from CST to AST.
 
 ### `Check.rsc` — Well-formedness Checker
-Implement `checkBoulderRouteConfiguration(...)` that takes an AST and validates all well-formedness rules, returning a list of errors/messages for any violations.
+Specify a well-formedness checker for LaBouR. To do this, it is necessary to define the function `checkBoulderRouteConfiguration(...)`, which takes the AST of a bouldering route as parameter and verifies that all well-formedness checks succeed (module `Check.rsc`).
 
 ---
 
@@ -227,30 +243,32 @@ bouldering_wall "Example wall" {
 ## Submission
 
 Submit a **zip file** via Canvas (as a group of two) containing:
-- All modified `.rsc` files
-- Test `.labour` programs demonstrating correct validation of non-trivial valid specifications
-- Test `.labour` programs with invalid descriptions demonstrating correctness of the checker
+- Your LaBouR language solution, including all modified files.
+- The test programs demonstrating the correct validation of non-trivial LaBouR specifications.
+- Test programs containing invalid route descriptions to demonstrate the correctness of the checker.
 
 **Add comments to your files explaining all design decisions.**
 
 ---
 
 ## Grading Rubric
-
-| Category | Item | Points |
-|---|---|---|
-| **Concrete Syntax** | Well-thought separation of syntax validation vs. external validation | 1.0 |
-| | Decoupled syntax, easy to modify and extend | 1.0 |
-| **Abstract Syntax** | Matches the concrete syntax | 1.0 |
-| **CST → AST** | Clean transformation, one mapping per language construct | 2.0 |
-| **Constraints** | Route has two or more holds | 0.5 |
-| | All route properties are present | 0.5 |
-| | Correct number of start and end holds | 0.5 |
-| | All required hold properties are present and correct | 0.5 |
-| | All route holds have the same colour | 0.5 |
-| | All required volume properties are present and correct | 0.5 |
-| | Sub-route constraints are validated | 0.5 |
-| **Other** | All constraints validated with test programs | 0.5 |
-| | Test programs validate individual constraints | 0.5 |
-| | Reasoning behind language design decisions present (as comments) | 0.5 |
-| **Total** | | **10.0** |
+- **Concrete Syntax**
+  - Well-thought separation of syntax validation vs. external validation | 1.0 |
+  - Decoupled syntax, easy to modify and extend | 1.0 |
+- **Abstract Syntax**
+  - Matches the concrete syntax | 1.0 |
+- **CST -> AST**
+  - Clean transformation, one mapping per language construct | 2.0 |
+- **Constraints**
+  - Route has two or more holds | 0.5 |
+  - All route properties are present | 0.5 |
+  - Correct number of start and end holds | 0.5 |
+  - All required hold properties are present and correct | 0.5 |
+  - All route holds have the same colour | 0.5 |
+  - All required volume properties are present and correct | 0.5 |
+  - Sub-route constraints are validated | 0.5 |
+- **Other**
+  - All constraints validated with test programs | 0.5 |
+  - Test programs validate individual constraints | 0.5 |
+  - Reasoning behind language design decisions present (as comments) | 0.5 |
+- **Total** | **10.0** |

@@ -40,7 +40,7 @@ HoldAST cst2ast((Hold)`hold <HoldId hid> { <{HoldProperty ","}* props> }`) {
     else if ((HoldProperty)`shape: <ShapeId sh>` := prop) shape = unquote("<sh>");
     else if ((HoldProperty)`colours [ <{Colour ","}+ cols> ]` := prop) colours = ["<c>" | c <- cols];
     else if ((HoldProperty)`rotation: <Integer n>` := prop) rot = just(toInt("<n>"));
-    else if ((HoldProperty)`start_hold: <StartNum n>` := prop) labels += startHold(toInt("<n>"));
+    else if ((HoldProperty)`start_hold: <StartHold n>` := prop) labels += startHold(toInt("<n>"));
     else if ((HoldProperty)`end_hold` := prop) labels += endHold();
   }
 
@@ -58,25 +58,25 @@ PosAST cst2ast((Pos)`{ x: <Integer x> , y: <Integer y> }`) = pos(toInt("<x>"), t
 
 // ─── Volume ───────────────────────────────────────────────────────────────────
 
-VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , radius: <Integer r> , <{CircleHoldSection ","}* circleSections> }`) =
+VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , radius: <Integer r> , <{CircleHolds ","}* circleSections> }`) =
   circle(cst2ast(p), toInt("<d>"), toInt("<r>"), [cst2ast(s) | s <- circleSections]);
 
-VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , <{CircleHoldSection ","}* circleSections> }`) =
+VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , <{CircleHolds ","}* circleSections> }`) =
   circle(cst2ast(p), toInt("<d>"), 0, [cst2ast(s) | s <- circleSections]);
 
-VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , corners [ <Pos c1> , <Pos c2> , <Pos c3> ] , <{TriangleHoldSection ","}* triangleSections> }`) =
+VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , corners [ <Pos c1> , <Pos c2> , <Pos c3> ] , <{TriangleHolds ","}* triangleSections> }`) =
   triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [cst2ast(c1), cst2ast(c2), cst2ast(c3)], [cst2ast(s) | s <- triangleSections]);
 
-VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , <{TriangleHoldSection ","}* triangleSections> }`) =
+VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , <{TriangleHolds ","}* triangleSections> }`) =
   triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [], [cst2ast(s) | s <- triangleSections]);
 
 // ─── CircleHoldSection ────────────────────────────────────────────────────────
 
-CircleHoldSectionAST cst2ast((CircleHoldSection)`front_holds [ <{Hold ","}* hs> ]`) = frontHolds([cst2ast(h) | h <- hs]);
-CircleHoldSectionAST cst2ast((CircleHoldSection)`side_holds [ <{Hold ","}* hs> ]`)  = sideHolds([cst2ast(h) | h <- hs]);
+CircleHoldSectionAST cst2ast((CircleHolds)`front_holds [ <{Hold ","}* hs> ]`) = frontHolds([cst2ast(h) | h <- hs]);
+CircleHoldSectionAST cst2ast((CircleHolds)`side_holds [ <{Hold ","}* hs> ]`)  = sideHolds([cst2ast(h) | h <- hs]);
 
-// ─── TriangleHoldSection ──────────────────────────────────────────────────────
+// ─── TriangleHolds ──────────────────────────────────────────────────────
 
-TriangleHoldSectionAST cst2ast((TriangleHoldSection)`left_holds [ <{Hold ","}* hs> ]`)   = leftHolds([cst2ast(h) | h <- hs]);
-TriangleHoldSectionAST cst2ast((TriangleHoldSection)`right_holds [ <{Hold ","}* hs> ]`)  = rightHolds([cst2ast(h) | h <- hs]);
-TriangleHoldSectionAST cst2ast((TriangleHoldSection)`bottom_holds [ <{Hold ","}* hs> ]`) = bottomHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHolds)`left_holds [ <{Hold ","}* hs> ]`)   = leftHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHolds)`right_holds [ <{Hold ","}* hs> ]`)  = rightHolds([cst2ast(h) | h <- hs]);
+TriangleHoldSectionAST cst2ast((TriangleHolds)`bottom_holds [ <{Hold ","}* hs> ]`) = bottomHolds([cst2ast(h) | h <- hs]);
