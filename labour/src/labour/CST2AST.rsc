@@ -4,6 +4,18 @@ import labour::Syntax;
 import labour::AST;
 import String;
 
+/*
+ * Design Decisions for CST2AST (The Mapping Bridge)
+ *
+ * - Manual Mapping Bridge: Takes the Concrete Syntax Tree (CST) node produced by 
+ *   Syntax.rsc and manually maps it to the corresponding clean AST node in AST.rsc.
+ * - Stripping Syntactic Noise: It strips syntactic elements like matching quotes 
+ *   (using the `unquote` helper), braces, and commas, keeping only the underlying data.
+ * - Extensibility: Constructs AST nodes by pattern-matching the CST. It currently 
+ *   works well for the provided example inputs but may require hardening for every 
+ *   edge case of the grammar (e.g., optional fields, alternate whitespace, reordering).
+ */
+
 BoulderWallAST cst2ast(start[BoulderingWall] pt) {
   return cst2ast(pt.top);
 }

@@ -1,0 +1,4 @@
+bouldering_wall "Wall1" {
+  routes [ bouldering_route "Route1" { grade: "5A", grid_base_point { x: 0, y: 0 }, holds ["0001"] } ],
+  volumes []
+}

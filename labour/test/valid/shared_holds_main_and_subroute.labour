@@ -1,0 +1,29 @@
+bouldering_wall "Wall3" {
+  routes [
+    bouldering_route "Route1" {
+      grade: "5A",
+      grid_base_point { x: 0, y: 0 },
+      holds ["0001", "0002", {"0003", "0004"}]
+    },
+    bouldering_route "Route2" {
+      grade: "6A",
+      grid_base_point { x: 10, y: 0 },
+      holds ["0005", "0002", {"0003", "0006"}]
+    }
+  ],
+  volumes [
+    circle {
+      pos: { x: 0, y: 0 },
+      depth: 10,
+      radius: 50,
+      front_holds [
+        hold "0001" { pos: { x: 0, y: 0 }, shape: "1", colours [blue], start_hold: 1 },
+        hold "0002" { pos: { x: 10, y: 10 }, shape: "2", colours [blue] },
+        hold "0003" { pos: { x: 20, y: 20 }, shape: "3", colours [blue], end_hold },
+        hold "0004" { pos: { x: 30, y: 30 }, shape: "4", colours [blue], end_hold },
+        hold "0005" { pos: { x: 40, y: 40 }, shape: "5", colours [blue], start_hold: 1 },
+        hold "0006" { pos: { x: 50, y: 50 }, shape: "6", colours [blue], end_hold }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+bouldering_wall "Wall1" {
+  routes [],
+  volumes [ circle { pos: { x: 0, y: 0 }, depth: 10, radius: 50, front_holds [] } ]
+}

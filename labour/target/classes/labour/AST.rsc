@@ -1,5 +1,16 @@
 module labour::AST
 
+/*
+ * Design Decisions for AST (Abstract Syntax Tree)
+ * 
+ * - Domain Model: Defines the structural representation of the mapped data, completely
+ *   free of grammar formatting (e.g., syntactic noise like braces and commas are removed).
+ * - Simplicity for Validation: This clean tree structure makes it extremely easy to query, 
+ *   traverse, and validate in the subsequent checker phase.
+ * - Comprehensive Constructors: Contains constructors for walls, routes, hold references, 
+ *   volumes, holds, and position variants used by the checker and mapping.
+ */
+
 data BoulderWallAST
   = boulderWall(str wallId, list[RouteAST] routes, list[VolumeAST] volumes);
 

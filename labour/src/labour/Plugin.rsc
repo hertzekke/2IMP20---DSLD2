@@ -1,6 +1,7 @@
 module labour::Plugin
 
 import IO;
+import ParseTree;
 
 import util::Reflective;
 import util::IDEServices;
@@ -17,12 +18,17 @@ import labour::Check;
  * Finally, the resulting AST is used to evaluate the well-formedness of the labour program using the check function (Check.rsc).
  */
 bool checkWellformedness(loc fil) {
-  // Parsing
-  &T resource = parseLaBouR(fil);
-  // Transform the parse tree into an abstract syntax tree
-  &T ast = cst2ast(resource);
-  // Check the well-formedness of the program
-  return checkBoulderRouteConfiguration(ast);
+  try {
+    // Parsing
+    &T resource = parseLaBouR(fil);
+    // Transform the parse tree into an abstract syntax tree
+    &T ast = cst2ast(resource);
+    // Check the well-formedness of the program
+    return checkBoulderRouteConfiguration(ast);
+  } catch ParseError(l): {
+    println("ParseError in <fil>: <l>");
+    return false;
+  }
 }
 
 /*

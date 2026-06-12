@@ -1,0 +1,36 @@
+bouldering_wall "Wall4" {
+  routes [
+    bouldering_route "WildcardRoute" {
+      grade: "7B",
+      grid_base_point { x: 0, y: 0 },
+      holds ["0001", "0002", "0003", "0004"]
+    }
+  ],
+  volumes [
+    circle {
+      pos: { x: 50, y: 50 },
+      depth: 20,
+      radius: 100,
+      front_holds [
+        hold "0001" { pos: { angle: 45 }, shape: "10", rotation: 90, colours [green, black], start_hold: 1 },
+        hold "0002" { pos: { angle: 180 }, shape: "11", rotation: 180, colours [green, white], start_hold: 2 }
+      ]
+    },
+    triangle {
+      pos: { x: 200, y: 200 },
+      extrusion: { x: 10, y: 10 },
+      depth: 30,
+      corners [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 50, y: 100 }
+      ],
+      left_holds [
+        hold "0003" { pos: { x: 20, y: 20 }, shape: "12", colours [green, blue] }
+      ],
+      bottom_holds [
+        hold "0004" { pos: { x: 50, y: 10 }, shape: "13", rotation: 270, colours [green, red], end_hold }
+      ]
+    }
+  ]
+}
