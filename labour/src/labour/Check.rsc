@@ -37,13 +37,13 @@ bool checkBoulderRouteConfiguration(BoulderWallAST wall){
   bool hasVolumesAndRoutes = (size(wall.routes) >= 1 && size(wall.volumes) >= 1);
 
   // Rule 2: Every route must have two or more holds
-  bool routesHaveEnoughHolds = checkNumberOfHolds(wall);
+  bool routesHaveEnoughHolds = all(route(_, _, _, holds) <- wall.routes, size(holds) >= 2);
 
   // Rule 3: Every route must have between zero and two hand start holds
   bool startingLabelLimit = checkStartingHoldsTotalLimit(wall);
 
   // Rule 4: At most one split per route, with exactly two sub-routes per split
-  bool splitLimit = checkMaxOneSplit(wall);
+  bool splitLimit = checkMaxOneSplitWithExactlyTwoBranches(wall);
 
   // Rule 7: At most two end_holds if split, at most one if not
   bool unique_end_hold = checkUniqueEndHold(wall);
@@ -63,27 +63,12 @@ bool checkBoulderRouteConfiguration(BoulderWallAST wall){
 }
 
 /* **************************************************
- *         Rule 2: Route Hold Count                 *
- ************************************************** */
-// Rule 2: "Every route must have two or more holds."
-bool checkNumberOfHolds(BoulderWallAST wall) {
-  for (route(rid, g, gbp, holds) <- wall.routes) {
-    if (size(holds) < 2) {
-      println("Route has fewer than two holds: " + rid);
-      return false;
-    }
-  }
-  return true;
-}
-
-/* **************************************************
  *         Rule 3: Start Hold Limit                 *
  ************************************************** */
-// Rule 3: "Every route must have between zero and two hand start holds."
 // From assignment: "A hold can be labelled as a start_hold, which takes either 1 or 2 as an argument"
 // From assignment: "There can be a maximum of two starting holds [...] per route"
 bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
-  for (route(rid, g, gbp, holds) <- wall.routes) {
+  for (route(_, _, _, holds) <- wall.routes) {
     int totalStarts = 0;
     for (hr <- holds) {
       switch(hr) {
@@ -95,8 +80,8 @@ bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
             }
           }
         }
-        case subRoute(ids): {
-          for (id <- ids) {
+        case subRoute(branchHoldIds): {
+          for (id <- branchHoldIds) {
             list[HoldAST] hs = findHoldById(wall, id);
             for (h <- hs) {
               for (lbl <- h.labels) {
@@ -109,7 +94,7 @@ bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
     }
     // From assignment: maximum of two starting holds per route
     if (totalStarts > 2) {
-      println("Route " + rid + " has invalid number of start holds: " + toString(totalStarts));
+      println("Route does not have a maximum of 2 starting holds per route");
       return false;
     }
   }
@@ -119,14 +104,12 @@ bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
 /* **************************************************
  *      Rule 4: Max One Split Per Route             *
  ************************************************** */
-// Split must branch into exactly 2 sub-routes; less or more is invalid.
-bool checkMaxOneSplit(BoulderWallAST wall) {
-  for (route(rid, g, gbp, holds) <- wall.routes) {
+bool checkMaxOneSplitWithExactlyTwoBranches(BoulderWallAST wall) {
+  for (route(_, _, _, holds) <- wall.routes) {
     for (hr <- holds) {
-      if (subRoute(ids) := hr) {
-        // From assignment: "no more than two sub-routes" — each sub-route group must have exactly 2 branches
-        if (size(ids) != 2) {
-          println("Route " + rid + " has a sub-route group with " + toString(size(ids)) + " branches (expected exactly 2)");
+      if (subRoute(branchHoldIds) := hr) {
+        if (size(branchHoldIds) != 2) {
+          println("Route has a sub-route group with more or less than 2 branches (expected exactly 2)");
           return false;
         }
       }
@@ -142,7 +125,7 @@ bool checkMaxOneSplit(BoulderWallAST wall) {
 //          and at most one end_hold if it does not split."
 // From assignment: "If there are sub-routes, then each sub-route may have an end hold."
 bool checkUniqueEndHold(BoulderWallAST wall){
-  for (route(rid, g, gbp, holds) <- wall.routes) {
+  for (route(_, _, _, holds) <- wall.routes) {
     int endCount = 0;
     bool hasSplit = false;
     for (hr <- holds) {
@@ -155,9 +138,9 @@ bool checkUniqueEndHold(BoulderWallAST wall){
             }
           }
         }
-        case subRoute(ids): {
+        case subRoute(branchHoldIds): {
           hasSplit = true;
-          for (id <- ids) {
+          for (id <- branchHoldIds) {
             list[HoldAST] hs = findHoldById(wall, id);
             for (h <- hs) {
               for (lbl <- h.labels) {
@@ -170,13 +153,13 @@ bool checkUniqueEndHold(BoulderWallAST wall){
     }
     if (hasSplit) {
       if (endCount > 2) {
-        println("Route " + rid + " has too many end holds for a split route");
+        println("Route has too many end holds for a split route");
         return false;
       }
     }
     else {
       if (endCount > 1) {
-        println("Route " + rid + " has more than one end hold");
+        println("Route has more than one end hold");
         return false;
       }
     }
@@ -193,7 +176,7 @@ bool checkUniqueEndHold(BoulderWallAST wall){
 // Design Decision: we track state using a simple state machine:
 //   0 (BEFORE_SPLIT) -> 1 (IN_SPLIT) -> 2 (MERGED) -> seeing subRoute in state 2 = error
 bool checkNoSplitAfterMerge(BoulderWallAST wall) {
-  for (route(rid, g, gbp, holds) <- wall.routes) {
+  for (route(_, _, _, holds) <- wall.routes) {
     int state = 0;
     for (hr <- holds) {
       switch(hr) {
@@ -202,7 +185,7 @@ bool checkNoSplitAfterMerge(BoulderWallAST wall) {
             state = 1; // First split encountered
           } else if (state == 2) {
             // Re-split after merge: invalid per Rule 8
-            println("Route " + rid + " has a split after a merge (split-merge-split is not allowed, see Rule 8)");
+            println("Route has a split after a merge (split-merge-split is not allowed, see Rule 8)");
             return false;
           }
           // state == 1: still within the same split region, OK
@@ -247,26 +230,15 @@ bool checkHoldProperties(BoulderWallAST wall) {
         case just(rot): if (rot < 0 || rot > 359) { println("Hold " + h.holdId + " rotation out of range"); return false; }
         case nothing(): ; // OK — rotation is optional per Rule 14
       }
-      // Rule 15: each colour must be valid
-      // [!] Also enforced by grammar (Colour lexical), but checked here for robustness.
-      for (c <- h.colours) { if (!isValidColour(c)) { println("Hold " + h.holdId + " has invalid colour " + c); return false; } }
     }
   }
   return true;
 }
 
-// Rule 15: "The colour values used must be valid. For now, we assume valid colours to be
-//           white, yellow, green, blue, red, purple, pink, black, and orange."
-bool isValidColour(str c) {
-  set[str] valid = {"white","yellow","green","blue","red","purple","pink","black","orange"};
-  return c in valid;
-}
-
 /* **************************************************
  *      Volume Hold Extraction Helper               *
  ************************************************** */
-// Helper: extracts all holds from a volume (circle or triangle) regardless of hold section type.
-// This is used by multiple check functions to iterate over all physical holds defined in the wall.
+// Helper function to extract all holds from a volume (circle or triangle). Used by multiple check functions that go over all holds defined in a wall
 list[HoldAST] volumeHolds(VolumeAST v) {
   switch(v) {
     case circle(_, _, _, sections): {
@@ -303,7 +275,7 @@ list[HoldAST] volumeHolds(VolumeAST v) {
 // Design Decision: we compute the running intersection of all hold colour lists in the route.
 // For each subsequent hold, we filter the running intersection to keep only colours present in both.
 bool checkRoutesColoursIntersection(BoulderWallAST wall) {
-  for (route(rid, g, gbp, holds) <- wall.routes) {
+  for (route(_, _, _, holds) <- wall.routes) {
     list[list[str]] allColours = [];
     for (hr <- holds) {
       switch(hr) {
@@ -311,32 +283,30 @@ bool checkRoutesColoursIntersection(BoulderWallAST wall) {
           list[HoldAST] hs = findHoldById(wall,id);
           for (h <- hs) allColours += [h.colours];
         }
-        case subRoute(ids): {
-          for (id <- ids) {
+        case subRoute(branchHoldIds): {
+          for (id <- branchHoldIds) {
             list[HoldAST] hs = findHoldById(wall,id);
             for (h <- hs) allColours += [h.colours];
           }
         }
       }
     }
-    if (size(allColours) == 0) { println("Route " + rid + " references unknown holds"); return false; }
+    if (size(allColours) == 0) { println("Route references unknown holds"); return false; }
     // Compute running intersection: start with the first hold's colours, then intersect with each subsequent hold
     list[str] interList = allColours[0];
     for (i <- [1..size(allColours)]) {
       list[str] next = allColours[i];
       interList = [c | c <- interList, c in next];
     }
-    if (size(interList) == 0) { println("Route " + rid + " has no common colour across its holds"); return false; }
+    if (size(interList) == 0) { println("Route has no common colour across its holds"); return false; }
   }
   return true;
 }
 
-/* **************************************************
- *      Hold Lookup Helper                          *
- ************************************************** */
-// Helper: finds a hold by its ID across all volumes in the wall.
-// Returns a list with the matching hold, or an empty list if not found.
-// From assignment: holds are defined inside volumes and referenced by ID in routes.
+// Helper function to find a hold by its ID across all volumes in the wall. Returns list with matching hold if ID matches, empty list otherwise.
+// Design decision: rascal has no null values (from Rascal's 0.42.2 docs: "Rascal is safe: there are no null values"). Thus, 
+// if the list is empty, it means the hold was not found. If it has one element, then the hold has been found. It's easier
+// to check after size().
 list[HoldAST] findHoldById(BoulderWallAST wall, str id) {
   for (v <- wall.volumes) {
     for (h <- volumeHolds(v)) {
