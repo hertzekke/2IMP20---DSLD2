@@ -34,9 +34,10 @@ HoldAST cst2ast((Hold)`hold <HoldId hid> { <{HoldProperty ","}* props> }`) {
   list[str] colours = [];
   MaybeInt rot = nothing();
   list[HoldLabelAST] labels = [];
+  bool posProvided = false;
 
   for (HoldProperty prop <- props) {
-    if ((HoldProperty)`pos: <HoldPosition hp>` := prop) pos = cst2ast(hp);
+    if ((HoldProperty)`pos: <HoldPosition hp>` := prop) { pos = cst2ast(hp); posProvided = true; }
     else if ((HoldProperty)`shape: <ShapeId sh>` := prop) shape = unquote("<sh>");
     else if ((HoldProperty)`colours [ <{Colour ","}+ cols> ]` := prop) colours = ["<c>" | c <- cols];
     else if ((HoldProperty)`rotation: <Integer n>` := prop) rot = just(toInt("<n>"));
@@ -44,7 +45,7 @@ HoldAST cst2ast((Hold)`hold <HoldId hid> { <{HoldProperty ","}* props> }`) {
     else if ((HoldProperty)`end_hold` := prop) labels += endHold();
   }
 
-  return hold(unquote("<hid>"), pos, shape, colours, rot, labels);
+  return hold(unquote("<hid>"), pos, shape, colours, rot, labels, posProvided);
 }
 
 // ─── HoldPosition ─────────────────────────────────────────────────────────────
@@ -61,14 +62,8 @@ PosAST cst2ast((Pos)`{ x: <Integer x> , y: <Integer y> }`) = pos(toInt("<x>"), t
 VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , radius: <Integer r> , <{CircleHolds ","}* circleSections> }`) =
   circle(cst2ast(p), toInt("<d>"), toInt("<r>"), [cst2ast(s) | s <- circleSections]);
 
-VolumeAST cst2ast((Volume)`circle { pos: <Pos p> , depth: <Integer d> , <{CircleHolds ","}* circleSections> }`) =
-  circle(cst2ast(p), toInt("<d>"), 0, [cst2ast(s) | s <- circleSections]);
-
 VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , corners [ <Pos c1> , <Pos c2> , <Pos c3> ] , <{TriangleHolds ","}* triangleSections> }`) =
   triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [cst2ast(c1), cst2ast(c2), cst2ast(c3)], [cst2ast(s) | s <- triangleSections]);
-
-VolumeAST cst2ast((Volume)`triangle { pos: <Pos p> , extrusion: <Pos ext> , depth: <Integer d> , <{TriangleHolds ","}* triangleSections> }`) =
-  triangle(cst2ast(p), cst2ast(ext), toInt("<d>"), [], [cst2ast(s) | s <- triangleSections]);
 
 // ─── CircleHoldSection ────────────────────────────────────────────────────────
 

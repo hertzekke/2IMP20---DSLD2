@@ -9,9 +9,15 @@ grammar finds its roots in them. Besides the well-formedness rules we also motiv
 
 module labour::Syntax
 
-layout Standard = WhitespaceOrComment* !>> [\ \t\n\r\f] !>> "//";
-// Allow comments to be treated as whitespace. Allows for whitespace and new lines in tests.
-// For example, @missing_hold_property.labour has a comment
+/* **************************************************
+ *                 Layout & Comments                *
+ ************************************************** */
+
+// Consumes layout (spaces, tabs, newlines) and comments between grammar tokens
+layout SpacesAndComments = WhitespaceOrComment* !>> [\ \t\n\r\f] !>> "//";
+
+// Matches standard whitespace characters or single-line comment blocks
+// From assignment: comments are used for explanations inside configuration files (e.g., missing_hold_property.labour line 15)
 lexical WhitespaceOrComment = [\ \t\n\r\f] | "//" ![\n]* [\n]; 
 
 /* **************************************************

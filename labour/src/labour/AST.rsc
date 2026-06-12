@@ -12,7 +12,7 @@ data HoldRefAST
 
 data HoldAST
   = hold(str holdId, HoldPositionAST pos, str shape, list[str] colours,
-         MaybeInt rotation, list[HoldLabelAST] labels);
+         MaybeInt rotation, list[HoldLabelAST] labels, bool posProvided);
 
 data HoldPositionAST
   = xyPos(PosAST p)
@@ -21,8 +21,6 @@ data HoldPositionAST
 data PosAST
   = pos(int x, int y);
 
-data RotationAST
-  = rotation(int angle);
 
 data HoldLabelAST
   = startHold(int StartHold)
