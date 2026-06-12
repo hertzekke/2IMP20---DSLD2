@@ -13,6 +13,9 @@ This fil verifies all semantic constraints from the assignment description
  - Rule 18: Circle only has front/side holds
  - Rule 19: Triangle has position, depth, extrusion, 3 corners
  - Rule 20: Triangle only has left/right/bottom holds
+
+ Some rules are implicitely checked, such as rule 16. We defined in Syntax.rsc only 2 types of volumes.
+ Other rules (logic-centric) are checked here, as seen above.
 */
 
 module labour::Check
@@ -54,7 +57,9 @@ bool checkBoulderRouteConfiguration(BoulderWallAST wall){
   // Rule 11: All holds in a route share at least one common colour
   bool colours = checkRoutesColoursIntersection(wall);
 
-  // Rule 12, 13, 14: Hold property presence and range validation
+  // Rule 12: "Every hold must have a position (defined by x and y, or by an angle), a shape, and colour."
+  // Rule 13: "If a hold position is defined by an angle, the angle must be between 0 and 359."
+  // Rule 14: "Holds may have a rotation property. If a hold has a rotation, its value must be between 0 and 359."
   bool holdProperties = checkHoldProperties(wall);
 
   return (hasVolumesAndRoutes && routesHaveEnoughHolds && startingLabelLimit
@@ -65,28 +70,25 @@ bool checkBoulderRouteConfiguration(BoulderWallAST wall){
 /* **************************************************
  *         Rule 3: Start Hold Limit                 *
  ************************************************** */
-// From assignment: "A hold can be labelled as a start_hold, which takes either 1 or 2 as an argument"
-// From assignment: "There can be a maximum of two starting holds [...] per route"
+// Besides the rule, from the assignment says "A hold can be labelled as a start_hold, which takes either 1 or 2 as an argument"
 bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
   for (route(_, _, _, holds) <- wall.routes) {
     int totalStarts = 0;
-    for (hr <- holds) {
-      switch(hr) {
-        case single(id): {
-          list[HoldAST] hs = findHoldById(wall, id);
-          for (h <- hs) {
-            for (lbl <- h.labels) {
-              if (startHold(_) := lbl) totalStarts += 1;
-            }
+    for (holdRef <- holds) {
+      // Design Decision: look up hold attributes directly for non-split hold references
+      if (single(id) := holdRef) {
+        for (h <- findHoldById(wall, id)) {
+          for (label <- h.labels) {
+            if (startHold(_) := label) totalStarts += 1;
           }
         }
-        case subRoute(branchHoldIds): {
-          for (id <- branchHoldIds) {
-            list[HoldAST] hs = findHoldById(wall, id);
-            for (h <- hs) {
-              for (lbl <- h.labels) {
-                if (startHold(_) := lbl) totalStarts += 1;
-              }
+      }
+      // Design Decision: iterate over all sub-route hold IDs to look up holds for split route references
+      else if (subRoute(branchHoldIds) := holdRef) {
+        for (id <- branchHoldIds) {
+          for (h <- findHoldById(wall, id)) {
+            for (label <- h.labels) {
+              if (startHold(_) := label) totalStarts += 1;
             }
           }
         }
@@ -106,8 +108,8 @@ bool checkStartingHoldsTotalLimit(BoulderWallAST wall) {
  ************************************************** */
 bool checkMaxOneSplitWithExactlyTwoBranches(BoulderWallAST wall) {
   for (route(_, _, _, holds) <- wall.routes) {
-    for (hr <- holds) {
-      if (subRoute(branchHoldIds) := hr) {
+    for (holdRef <- holds) {
+      if (subRoute(branchHoldIds) := holdRef) {
         if (size(branchHoldIds) != 2) {
           println("Route has a sub-route group with more or less than 2 branches (expected exactly 2)");
           return false;
@@ -121,36 +123,35 @@ bool checkMaxOneSplitWithExactlyTwoBranches(BoulderWallAST wall) {
 /* **************************************************
  *      Rule 7: End Hold Limit                      *
  ************************************************** */
-// Rule 7: "Every route has at most two holds indicated as end_hold if it splits into sub-routes,
-//          and at most one end_hold if it does not split."
-// From assignment: "If there are sub-routes, then each sub-route may have an end hold."
+// Besides rule, from assignment: "If there are sub-routes, then each sub-route may have an end hold."
 bool checkUniqueEndHold(BoulderWallAST wall){
   for (route(_, _, _, holds) <- wall.routes) {
     int endCount = 0;
     bool hasSplit = false;
-    for (hr <- holds) {
-      switch(hr) {
+    for (holdRef <- holds) {
+      switch(holdRef) {
+        // Look up hold attributes for non-split hold references
         case single(id): {
-          list[HoldAST] hs = findHoldById(wall, id);
-          for (h <- hs) {
-            for (lbl <- h.labels) {
-              if (endHold() := lbl) endCount += 1;
+          for (h <- findHoldById(wall, id)) {
+            for (label <- h.labels) {
+              if (endHold() := label) endCount += 1;
             }
           }
         }
+        // From assignment description
         case subRoute(branchHoldIds): {
           hasSplit = true;
           for (id <- branchHoldIds) {
-            list[HoldAST] hs = findHoldById(wall, id);
-            for (h <- hs) {
-              for (lbl <- h.labels) {
-                if (endHold() := lbl) endCount += 1;
+            for (h <- findHoldById(wall, id)) {
+              for (label <- h.labels) {
+                if (endHold() := label) endCount += 1;
               }
             }
           }
         }
       }
     }
+    // Rule 7 enforcment
     if (hasSplit) {
       if (endCount > 2) {
         println("Route has too many end holds for a split route");
@@ -170,32 +171,22 @@ bool checkUniqueEndHold(BoulderWallAST wall){
 /* **************************************************
  *      Rule 8: No Split After Merge                *
  ************************************************** */
-// Rule 8: "In a route, after a split, there should be no new split if there was a merge before."
-// From assignment listing 5: holds ["0001", "0002", {"0003", "0004"}, "0007", {"0005", "0006"}]
-//                                                   > Split           > Merge   > Split (INVALID)
-// Design Decision: we track state using a simple state machine:
-//   0 (BEFORE_SPLIT) -> 1 (IN_SPLIT) -> 2 (MERGED) -> seeing subRoute in state 2 = error
+// In short, we track state using a simple state machine: 0 (before split), 1 (in split), 2 (merged)
+// if subRoute appears in state 2, there's a rule violation
 bool checkNoSplitAfterMerge(BoulderWallAST wall) {
   for (route(_, _, _, holds) <- wall.routes) {
     int state = 0;
-    for (hr <- holds) {
-      switch(hr) {
-        case subRoute(_): {
-          if (state == 0) {
-            state = 1; // First split encountered
-          } else if (state == 2) {
-            // Re-split after merge: invalid per Rule 8
-            println("Route has a split after a merge (split-merge-split is not allowed, see Rule 8)");
-            return false;
-          }
-          // state == 1: still within the same split region, OK
+    for (holdRef <- holds) {
+      if (subRoute(_) := holdRef) {
+        if (state == 0) {
+          state = 1;
+        } else if (state == 2) {
+          println("Route has a split after a merge, see Rule 8");
+          return false;
         }
-        case single(_): {
-          if (state == 1) {
-            state = 2; // Transition from split to single = merge
-          }
-          // state == 0: still before any split, OK
-          // state == 2: after merge, still on single holds, OK
+      } else {
+        if (state == 1) {
+          state = 2; // Transition from split to single = merge
         }
       }
     }
@@ -206,29 +197,23 @@ bool checkNoSplitAfterMerge(BoulderWallAST wall) {
 /* **************************************************
  *    Rules 12, 13, 14: Hold Properties             *
  ************************************************** */
-// Rule 12: "Every hold must have a position (defined by x and y, or by an angle), a shape, and colour."
-// Rule 13: "If a hold position is defined by an angle, the angle must be between 0 and 359."
-// Rule 14: "Holds may have a rotation property. If a hold has a rotation, its value must be between 0 and 359."
 bool checkHoldProperties(BoulderWallAST wall) {
   for (v <- wall.volumes) {
     for (h <- volumeHolds(v)) {
-      // Rule 12: position must have been explicitly provided
-      // Design Decision: CST2AST tracks whether pos: was present via a boolean flag (posProvided).
-      // Without this, a missing position would silently default to (0,0).
+      // Design Decision: CST2AST tracks whether pos was present via a boolean flag (posProvided).
+      // Without this, a missing position is defaulting to (0,0).
       if (!h.posProvided) { println("Hold " + h.holdId + " missing position"); return false; }
       // Rule 12: shape must be present
       if (h.shape == "") { println("Hold " + h.holdId + " missing shape"); return false; }
       // Rule 12: at least one colour must be present
       if (size(h.colours) == 0) { println("Hold " + h.holdId + " missing colours"); return false; }
       // Rule 13: if position is an angle, it must be in [0, 359]
-      switch(h.pos) {
-        case xyPos(_): ; // OK — x/y positions have no range constraint from the assignment
-        case anglePos(a): if (a < 0 || a > 359) { println("Hold " + h.holdId + " angle out of range"); return false; }
+      if (anglePos(a) := h.pos) {
+        if (a < 0 || a > 359) { println("Hold " + h.holdId + " angle out of range"); return false; }
       }
       // Rule 14: if rotation is present, it must be in [0, 359]
-      switch(h.rotation) {
-        case just(rot): if (rot < 0 || rot > 359) { println("Hold " + h.holdId + " rotation out of range"); return false; }
-        case nothing(): ; // OK — rotation is optional per Rule 14
+      if (just(rot) := h.rotation) {
+        if (rot < 0 || rot > 359) { println("Hold " + h.holdId + " rotation out of range"); return false; }
       }
     }
   }
@@ -240,28 +225,29 @@ bool checkHoldProperties(BoulderWallAST wall) {
  ************************************************** */
 // Helper function to extract all holds from a volume (circle or triangle). Used by multiple check functions that go over all holds defined in a wall
 list[HoldAST] volumeHolds(VolumeAST v) {
-  switch(v) {
-    case circle(_, _, _, sections): {
-      list[HoldAST] res = [];
-      for (s <- sections) {
-        switch(s) {
-          case frontHolds(hs): res += hs;
-          case sideHolds(hs): res += hs;
-        }
+  if (circle(_, _, _, sections) := v) {
+    list[HoldAST] extractedHolds = [];
+    for (s <- sections) {
+      if (frontHolds(sectionHolds) := s) {
+        extractedHolds += sectionHolds;
+      } else if (sideHolds(sectionHolds) := s) {
+        extractedHolds += sectionHolds;
       }
-      return res;
     }
-    case triangle(_, _, _, _, sections): {
-      list[HoldAST] res = [];
-      for (s <- sections) {
-        switch(s) {
-          case leftHolds(hs): res += hs;
-          case rightHolds(hs): res += hs;
-          case bottomHolds(hs): res += hs;
-        }
+    return extractedHolds;
+  }
+  else if (triangle(_, _, _, _, sections) := v) {
+    list[HoldAST] extractedHolds = [];
+    for (s <- sections) {
+      if (leftHolds(sectionHolds) := s) {
+        extractedHolds += sectionHolds;
+      } else if (rightHolds(sectionHolds) := s) {
+        extractedHolds += sectionHolds;
+      } else if (bottomHolds(sectionHolds) := s) {
+        extractedHolds += sectionHolds;
       }
-      return res;
     }
+    return extractedHolds;
   }
   return [];
 }
@@ -269,35 +255,30 @@ list[HoldAST] volumeHolds(VolumeAST v) {
 /* **************************************************
  *    Rule 11: Common Colour Across Route Holds     *
  ************************************************** */
-// Rule 11: "The holds in a bouldering route must all have the same colour.
-//           In multicoloured holds, the intersection of the colour lists must be non-empty.
-//           The order of the colours in a multicoloured hold is not relevant."
-// Design Decision: we compute the running intersection of all hold colour lists in the route.
-// For each subsequent hold, we filter the running intersection to keep only colours present in both.
+// In short, we collect all holds' colours and check if they share at least one common colour.
 bool checkRoutesColoursIntersection(BoulderWallAST wall) {
   for (route(_, _, _, holds) <- wall.routes) {
     list[list[str]] allColours = [];
-    for (hr <- holds) {
-      switch(hr) {
-        case single(id): {
-          list[HoldAST] hs = findHoldById(wall,id);
-          for (h <- hs) allColours += [h.colours];
-        }
-        case subRoute(branchHoldIds): {
-          for (id <- branchHoldIds) {
-            list[HoldAST] hs = findHoldById(wall,id);
-            for (h <- hs) allColours += [h.colours];
-          }
+    for (holdRef <- holds) {
+      // if hold is part of main route, take its colour
+      if (single(id) := holdRef) {
+        for (h <- findHoldById(wall, id)) allColours += [h.colours];
+        // if hold is part of sub route, take its colour
+      } else if (subRoute(branchHoldIds) := holdRef) {
+        for (id <- branchHoldIds) {
+          for (h <- findHoldById(wall, id)) allColours += [h.colours];
         }
       }
     }
+    // prevents accessing an array list of size 0, throwing error
     if (size(allColours) == 0) { println("Route references unknown holds"); return false; }
-    // Compute running intersection: start with the first hold's colours, then intersect with each subsequent hold
-    list[str] interList = allColours[0];
+    list[str] interList = allColours[0]; // first hold's colours
+    // get the intersection of colors for all holds
     for (i <- [1..size(allColours)]) {
       list[str] next = allColours[i];
-      interList = [c | c <- interList, c in next];
+      interList = [c | c <- interList, c in next]; 
     }
+    // invalid if they share no common color
     if (size(interList) == 0) { println("Route has no common colour across its holds"); return false; }
   }
   return true;
